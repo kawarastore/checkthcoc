@@ -302,7 +302,7 @@
       <h2>Upgrade yang sedang jalan</h2>
       <p class="section-note">Dihitung dari field <code>timer</code> di data export (dalam detik), sejak saat kamu export.</p>
       <table id="activeTable">
-        <thead><tr><th>ID Bangunan</th><th>Naik ke level</th><th>Sisa waktu (saat export)</th><th>Estimasi selesai</th></tr></thead>
+        <thead><tr><th>Kategori</th><th>ID</th><th>Naik ke level</th><th>Sisa waktu (saat export)</th><th>Estimasi selesai</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -369,7 +369,6 @@ const priorityGuide = {
     goalSel.appendChild(o2);
   }
 })();
-renderMappingPanel();
 
 function fmtDuration(sec){
   if (sec <= 0) return "Selesai";
@@ -601,13 +600,14 @@ document.getElementById("analyzeBtn").addEventListener("click", () => {
   const tbody = document.querySelector("#activeTable tbody");
   tbody.innerHTML = "";
   if (activeUpgrades.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-dim);">Tidak ada upgrade sedang berjalan di data ini.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-dim);">Tidak ada upgrade sedang berjalan di data ini.</td></tr>';
   } else {
     activeUpgrades.sort((a,b) => b.timer - a.timer).forEach(b => {
       longest = Math.max(longest, b.timer);
       const finishDate = new Date((data.timestamp||Date.now()/1000)*1000 + b.timer*1000);
       const tr = document.createElement("tr");
       tr.innerHTML = `
+        <td style="color:var(--text-dim); font-size:12px;">${b._category}</td>
         <td><span class="tag progress">#${b.data}</span></td>
         <td>Lv ${b.lvl != null ? b.lvl + 1 : "-"} <span style="color:var(--text-dim); font-size:11.5px;">(dari Lv ${b.lvl ?? "-"})</span></td>
         <td>${fmtDuration(b.timer)}</td>
@@ -640,6 +640,8 @@ document.getElementById("analyzeBtn").addEventListener("click", () => {
 
   document.getElementById("results").style.display = "block";
 });
+
+renderMappingPanel();
 </script>
 </body>
 </html>
