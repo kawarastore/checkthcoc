@@ -308,10 +308,16 @@
     </div>
 
     <div class="panel">
-      <h2>Semua Bangunan Terdata</h2>
-      <p class="section-note">Diurutkan dari level terendah — kandidat pertama yang layak diprioritaskan kalau tertinggal jauh dari yang lain. Klik nama untuk mengedit di Database Nama Bangunan.</p>
+      <h2>Semua Data Desa Terdata</h2>
+      <p class="section-note">Mencakup semua kategori data Desa: Bangunan, Jebakan, Dekorasi, Penghalang, Peleton, Mantra, Mesin Pengepungan, Pahlawan, Hewan, Peralatan, Komponen Rumah, Kostum, dan Latar — untuk Desa Asal maupun Basis Tukang. Diurutkan dari level terendah dalam tiap kategori.</p>
+      <div class="row" style="margin-top:0; margin-bottom:14px;">
+        <div class="field">
+          <label for="categoryFilter">Filter kategori</label>
+          <select id="categoryFilter"><option value="__all">Semua kategori</option></select>
+        </div>
+      </div>
       <table id="inventoryTable">
-        <thead><tr><th>Bangunan</th><th>Level</th><th>Jumlah</th><th>Status</th></tr></thead>
+        <thead><tr><th>Kategori</th><th>Item</th><th>Level</th><th>Jumlah</th><th>Status</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -464,13 +470,28 @@ document.getElementById("importMapFile").addEventListener("change", (e) => {
 let lastEntries = [];
 function renderInventoryIfPossible(){
   if (lastEntries.length === 0) return;
-  renderInventory(lastEntries);
+  renderInventory(lastEntries, document.getElementById("categoryFilter").value);
 }
 
-function renderInventory(entries){
+function populateCategoryFilter(entries){
+  const sel = document.getElementById("categoryFilter");
+  const cats = [...new Set(entries.map(e => e._category))];
+  const current = sel.value;
+  sel.innerHTML = '<option value="__all">Semua kategori</option>' +
+    cats.map(c => `<option value="${c}">${c}</option>`).join("");
+  sel.value = cats.includes(current) ? current : "__all";
+}
+
+function renderInventory(entries, filter){
+  filter = filter || "__all";
   const tbody = document.querySelector("#inventoryTable tbody");
   tbody.innerHTML = "";
-  const sorted = [...entries].sort((a,b) => (a.lvl ?? 0) - (b.lvl ?? 0));
+  const visible = filter === "__all" ? entries : entries.filter(e => e._category === filter);
+  if (visible.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-dim);">Tidak ada data di kategori ini.</td></tr>';
+    return;
+  }
+  const sorted = [...visible].sort((a,b) => (a.lvl ?? 0) - (b.lvl ?? 0));
   const avgLvl = sorted.reduce((s,b) => s + (b.lvl ?? 0), 0) / (sorted.length || 1);
   sorted.forEach(b => {
     const info = buildingMap[b.data] || {name:"", cat:"Lainnya"};
@@ -478,13 +499,17 @@ function renderInventory(entries){
     const isLow = (b.lvl ?? 0) < avgLvl * 0.7;
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${displayName} <span style="color:var(--text-dim); font-size:11px;">(${info.cat})</span></td>
+      <td style="color:var(--text-dim); font-size:12px;">${b._category}</td>
+      <td>${displayName}</td>
       <td>Lv ${b.lvl ?? "-"}</td>
       <td>${b.cnt || 1}×</td>
       <td><span class="status-pill ${isLow ? 'status-low' : 'status-ok'}">${isLow ? 'Tertinggal' : 'Wajar'}</span></td>`;
     tbody.appendChild(tr);
   });
 }
+document.getElementById("categoryFilter").addEventListener("change", () => {
+  renderInventory(lastEntries, document.getElementById("categoryFilter").value);
+});
 
 function calcRushScore(entries, th){
   // Heuristic: compares average building level against a rough expected
@@ -514,7 +539,46 @@ document.getElementById("analyzeBtn").addEventListener("click", () => {
     return;
   }
 
-  const allEntries = [...(data.buildings||[]), ...(data.buildings2||[])];
+  // Semua kategori data Desa sesuai keterangan resmi in-game:
+  // Bangunan, Jebakan, Dekorasi, Penghalang, Peleton, Mantra, Mesin
+  // Pengepungan, Pahlawan, Hewan, Peralatan, Komponen Rumah, Kostum, Latar
+  // — masing-masing untuk Desa Asal dan Basis Tukang (field bersuffix "2").
+  const CATEGORY_FIELDS = [
+    ["buildings",      "Bangunan (Desa Asal)"],
+    ["buildings2",     "Bangunan (Basis Tukang)"],
+    ["traps",          "Jebakan (Desa Asal)"],
+    ["traps2",         "Jebakan (Basis Tukang)"],
+    ["decos",          "Dekorasi (Desa Asal)"],
+    ["decos2",         "Dekorasi (Basis Tukang)"],
+    ["obstacles",      "Penghalang (Desa Asal)"],
+    ["obstacles2",     "Penghalang (Basis Tukang)"],
+    ["units",          "Peleton (Desa Asal)"],
+    ["units2",         "Peleton (Basis Tukang)"],
+    ["spells",         "Mantra (Desa Asal)"],
+    ["siege_machines", "Mesin Pengepungan (Desa Asal)"],
+    ["heroes",         "Pahlawan (Desa Asal)"],
+    ["heroes2",        "Pahlawan (Basis Tukang)"],
+    ["pets",           "Hewan (Desa Asal)"],
+    ["equipment",      "Peralatan (Desa Asal)"],
+    ["house_parts",    "Komponen Rumah (Basis Tukang)"],
+    ["skins",          "Kostum (Desa Asal)"],
+    ["skins2",         "Kostum (Basis Tukang)"],
+    ["sceneries",      "Latar (Desa Asal)"],
+    ["sceneries2",     "Latar (Basis Tukang)"]
+  ];
+
+  function collectAllEntries(data){
+    let out = [];
+    CATEGORY_FIELDS.forEach(([field, label]) => {
+      const arr = data[field];
+      if (Array.isArray(arr)) {
+        arr.forEach(item => out.push({...item, _category: label, _field: field}));
+      }
+    });
+    return out;
+  }
+
+  const allEntries = collectAllEntries(data);
   const activeUpgrades = allEntries.filter(b => typeof b.timer === "number" && b.timer > 0);
   const totalBuildings = allEntries.reduce((s,b) => s + (b.cnt || 1), 0);
   const boostSec = (data.boosts && data.boosts.builder_consumable) || 0;
@@ -522,7 +586,8 @@ document.getElementById("analyzeBtn").addEventListener("click", () => {
   lastEntries = allEntries;
   lastSeenIds = [...new Set(allEntries.map(b => b.data))].sort((a,b) => a-b);
   renderMappingPanel();
-  renderInventory(allEntries);
+  populateCategoryFilter(allEntries);
+  renderInventory(allEntries, "__all");
 
   const th0 = parseInt(document.getElementById("thLevel").value);
   const rush = calcRushScore(allEntries, th0);
